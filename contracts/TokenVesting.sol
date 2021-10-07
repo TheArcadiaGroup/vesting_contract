@@ -22,7 +22,6 @@ contract TokenVesting is Initializable, Ownable {
     IERC20 public token;
     //mapping(address => VestingInfo) public vestings;
     mapping(address => VestingInfo[]) public vestings;
-    mapping(address => bool) public lockers;
    
     event Lock(address user, uint256 amount);
     event Unlock(address user, uint256 amount);
@@ -36,19 +35,11 @@ contract TokenVesting is Initializable, Ownable {
         cliff = _cliff > 0 ? _cliff : cliff;
     }
 
-    function setLockers(address[] memory _lockers, bool val)
-        external
-        onlyOwner
-    {
-        for (uint256 i = 0; i < _lockers.length; i++) {
-            lockers[_lockers[i]] = val;
-            emit SetLocker(_lockers[i], val);
-        }
-    }
+ 
          function setCliff(uint256 _cliff)
+         onlyOwner
         external
         {
-              require(lockers[msg.sender], "only locker can set cliff");
                 cliff = _cliff;
         }
     function unlock(uint256 _id , address _addr) public {
@@ -61,11 +52,9 @@ contract TokenVesting is Initializable, Ownable {
        
     }
 
-    function lock(address _addr, uint256 _amount, uint256 _vetsingPercent) external {
+    function lock(address _addr, uint256 _amount, uint256 _vetsingPercent) external  onlyOwner {
          VestingInfo[] storage vestingArr =  vestings[_addr] ;
 
-      //  VestingInfo storage vesting = vestings[_id][_addr];
-        require(lockers[msg.sender], "only locker can lock");
         require(_addr != address(0), "TokenVesting: addr is the zero address");
         require(_vetsingPercent<=100,"<100%");
 
@@ -76,9 +65,11 @@ contract TokenVesting is Initializable, Ownable {
             emit Lock(_addr, _amount);
         }
     }
-    function blackList(uint256 _id, address _addr) external {
-           require(lockers[msg.sender], "only locker can add blackList");
-           
+    function blackList(uint256 _id, address _addr) 
+    external 
+    onlyOwner
+    {
+         
            if(getUnlockable(_id,_addr)>0){
                 unlock(_id,_addr);
            }
@@ -101,7 +92,6 @@ contract TokenVesting is Initializable, Ownable {
         uint256 gap  = block.timestamp.sub(vestingArr[_id].unlockedFrom);
         uint256 _weeks = gap.div(7 * 86400) +  1;
         uint256 releasable = vestingArr[_id].totalAmount.mul(_weeks.mul(vestingArr[_id].vetsingPercent)).div(100);
-       // uint256 releasable = timeElapsed.mul(vesting.totalAmount).div(period);
         if (releasable > vestingArr[_id].totalAmount) {
             releasable = vestingArr[_id].totalAmount;
         }

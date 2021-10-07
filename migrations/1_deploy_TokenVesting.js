@@ -4,8 +4,11 @@ const ABC = artifacts.require('ABC')
 const TokenVesting = artifacts.require('TokenVesting')
 
 
-module.exports = async (deployer) => {
-      const intance = await deployer.deploy(TokenVesting,"0xD473Ca21B6deC5f559d8F45012B3Cc90337703ec")
+module.exports = async (deployer,accounts) => {
+     await deployer.deploy(TokenVesting)
+     const VestingIntance = await TokenVesting.deployed();
+     const token_address = "0x821c663d084b0d6f4de1beed649284be1b5f35f7"
+     const cliff = 120;
+      await VestingIntance.initialize(token_address,cliff);
    
-     // const token = await deployer.deploy(ABC,"0xD473Ca21B6deC5f559d8F45012B3Cc90337703ec")
 }

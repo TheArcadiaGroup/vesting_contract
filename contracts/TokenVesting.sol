@@ -18,30 +18,20 @@ contract TokenVesting is Initializable, Ownable {
         uint256 totalAmount;
         uint256 vetsingPercent;
     }
-    uint256 public cliff = 90 days;
     IERC20 public token;
-    //mapping(address => VestingInfo) public vestings;
     mapping(address => VestingInfo[]) public vestings;
    
     event Lock(address user, uint256 amount);
     event Unlock(address user, uint256 amount);
     event SetLocker(address locker, bool val);
 
-    function initialize(address _token, uint256 _cliff)
+    function initialize(address _token)
         external
          initializer
     {
         token = IERC20(_token);
-        cliff = _cliff > 0 ? _cliff : cliff;
     }
 
- 
-         function setCliff(uint256 _cliff)
-         onlyOwner
-        external
-        {
-                cliff = _cliff;
-        }
     function unlock(uint256 _id , address _addr) public {
         uint256 unlockable = getUnlockable(_id,_addr);
           require(unlockable > 0, "TokenVesting: no tokens are due");
@@ -52,7 +42,7 @@ contract TokenVesting is Initializable, Ownable {
        
     }
 
-    function lock(address _addr, uint256 _amount, uint256 _vetsingPercent) external  onlyOwner {
+    function lock(address _addr, uint256 _amount, uint256 _vetsingPercent,uint256 _cliff) external  onlyOwner {
          VestingInfo[] storage vestingArr =  vestings[_addr] ;
 
         require(_addr != address(0), "TokenVesting: addr is the zero address");
@@ -61,7 +51,7 @@ contract TokenVesting is Initializable, Ownable {
             uint256 id=  vestingArr.length ;
         if (_amount > 0) {
             token.safeTransferFrom(msg.sender, address(this), _amount);
-            vestingArr.push(VestingInfo(id ,block.timestamp.add(cliff),0,_amount,_vetsingPercent));
+            vestingArr.push(VestingInfo(id ,block.timestamp.add(_cliff),0,_amount,_vetsingPercent));
             emit Lock(_addr, _amount);
         }
     }
@@ -118,8 +108,6 @@ contract TokenVesting is Initializable, Ownable {
             vetsingPercent[i] = vestings[_addr][i].vetsingPercent;
         }
     }
-    function getCliff () external view returns (uint256){
-        return cliff;
-    }
+  
      
 }

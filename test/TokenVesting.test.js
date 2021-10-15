@@ -18,8 +18,9 @@ function toWei(n) {
 function bn(x) {
 	return new BN(x);
 }
-const cliff = 90 * 1 * 86400; //90 days
+const cliff = 90; //90 days
 const week = 7 * 86400;
+const vestingPeriod = 50	//50 weeks
 contract('TokenVesting Test', (accounts) => {
 	let deployer = accounts[0];
 	let fundRecipient = accounts[1];
@@ -36,120 +37,150 @@ contract('TokenVesting Test', (accounts) => {
 	});
 	it("Lock ", async () => {
 		const lockAmount = 500000000
-		const percent = 5
 		const balanceBefore = (await this.token.balanceOf(deployer)).valueOf().toString()
 		assert.equal(balanceBefore, bn(1e18))
-		await this.tokenVesting.lock(fundRecipient, lockAmount, percent,cliff, { from: deployer })
+		await this.tokenVesting.lock(fundRecipient, lockAmount, cliff, vestingPeriod, { from: deployer })
 		const balanceAfter = (await this.token.balanceOf(deployer)).valueOf().toString()
 		assert.equal(bn(balanceBefore).minus(bn(balanceAfter)), lockAmount)
 
 		assert.equal((await this.tokenVesting.getUnlockable(0, fundRecipient)).valueOf().toString(), 0)
-		time.increase(cliff - 100)
+		assert.equal((await this.tokenVesting.getAllUnlockable(fundRecipient)).valueOf().toString(), 0)
+
+		time.increase(cliff * 86400 - 100)
+
 		assert.equal((await this.tokenVesting.getUnlockable(0, fundRecipient)).valueOf().toString(), 0)
-		time.increase(week)
-		assert.equal((await this.tokenVesting.getUnlockable(0, fundRecipient)).valueOf().toString(), lockAmount * percent / 100)
+		assert.equal((await this.tokenVesting.getAllUnlockable(fundRecipient)).valueOf().toString(), 0)
+
+		time.increase(week + 101)
+
+		//should be able to unlock 2% (1 week)
+		assert.equal((await this.tokenVesting.getUnlockable(0, fundRecipient)).valueOf().toString(), lockAmount * 2 / 100)
+		assert.equal((await this.tokenVesting.getAllUnlockable(fundRecipient)).valueOf().toString(), lockAmount * 2 / 100)
 
 		time.increase(20 * week)
+		//should be able to unlock 42% (21 week)
+		assert.equal((await this.tokenVesting.getUnlockable(0, fundRecipient)).valueOf().toString(), lockAmount * 42 / 100)
+		assert.equal((await this.tokenVesting.getAllUnlockable(fundRecipient)).valueOf().toString(), lockAmount * 42 / 100)
+
+		time.increase(29 * week)
 		assert.equal((await this.tokenVesting.getUnlockable(0, fundRecipient)).valueOf().toString(), lockAmount)
+		assert.equal((await this.tokenVesting.getAllUnlockable(fundRecipient)).valueOf().toString(), lockAmount)
+
 		time.increase(200 * week)
 		assert.equal((await this.tokenVesting.getUnlockable(0, fundRecipient)).valueOf().toString(), lockAmount)
+		assert.equal((await this.tokenVesting.getAllUnlockable(fundRecipient)).valueOf().toString(), lockAmount)
 
 		//lock2
-		await this.tokenVesting.lock(fundRecipient, lockAmount, percent,cliff, { from: deployer })
+		await this.tokenVesting.lock(fundRecipient, lockAmount, cliff, vestingPeriod, { from: deployer })
+
+		time.increase(cliff * 86400 - 100)
+
 		assert.equal((await this.tokenVesting.getUnlockable(1, fundRecipient)).valueOf().toString(), 0)
-		time.increase(cliff - 100)
-		assert.equal((await this.tokenVesting.getUnlockable(1, fundRecipient)).valueOf().toString(), 0)
-		time.increase(week)
-		assert.equal((await this.tokenVesting.getUnlockable(1, fundRecipient)).valueOf().toString(), lockAmount * percent / 100)
+		assert.equal((await this.tokenVesting.getAllUnlockable(fundRecipient)).valueOf().toString(), lockAmount)
+
+		time.increase(week + 101)
+
+		//should be able to unlock 2% (1 week)
+		assert.equal((await this.tokenVesting.getUnlockable(1, fundRecipient)).valueOf().toString(), lockAmount * 2 / 100)
+		assert.equal((await this.tokenVesting.getAllUnlockable(fundRecipient)).valueOf().toString(), lockAmount * 2 / 100 + lockAmount)
+
 		time.increase(20 * week)
+		//should be able to unlock 42% (21 week)
+		assert.equal((await this.tokenVesting.getUnlockable(1, fundRecipient)).valueOf().toString(), lockAmount * 42 / 100)
+		assert.equal((await this.tokenVesting.getAllUnlockable(fundRecipient)).valueOf().toString(), lockAmount * 42 / 100 + lockAmount)
+
+		time.increase(29 * week)
 		assert.equal((await this.tokenVesting.getUnlockable(1, fundRecipient)).valueOf().toString(), lockAmount)
+		assert.equal((await this.tokenVesting.getAllUnlockable(fundRecipient)).valueOf().toString(), lockAmount + lockAmount)
+
 		time.increase(200 * week)
 		assert.equal((await this.tokenVesting.getUnlockable(1, fundRecipient)).valueOf().toString(), lockAmount)
-
-		for(var i =0 ; i<users.length; i++){
-			const balanceBefore = (await this.token.balanceOf(deployer)).valueOf().toString()
-			await this.tokenVesting.lock(users[i], lockAmount, percent,cliff, { from: deployer })
-			const balanceAfter = (await this.token.balanceOf(deployer)).valueOf().toString()
-			assert.equal(bn(balanceBefore).minus(bn(balanceAfter)), lockAmount)
-		}
-
+		assert.equal((await this.tokenVesting.getAllUnlockable(fundRecipient)).valueOf().toString(), lockAmount + lockAmount)
 	})
 
 	it("Unlock ", async () => {
 		const lockAmount = 1000;
-		const percent = 20;
 
-
-		await this.tokenVesting.lock(fundRecipient2, lockAmount, percent,cliff, { from: deployer })
+		await this.tokenVesting.lock(fundRecipient2, lockAmount, cliff, vestingPeriod, { from: deployer })
 		assert.equal((await this.tokenVesting.getUnlockable(0, fundRecipient2)).valueOf().toString(), 0)
 
-		time.increase(cliff);
-		const balanceBefore = (await this.token.balanceOf(fundRecipient2)).valueOf().toString()
+		time.increase(cliff * 86400);
+		assert.equal((await this.tokenVesting.getUnlockable(0, fundRecipient2)).valueOf().toString(), 0)
+		let balanceBefore = (await this.token.balanceOf(fundRecipient2)).valueOf().toString()
 		assert.equal(balanceBefore, 0)
 		await this.tokenVesting.unlock(0, fundRecipient2, { from: fundRecipient2 });
-		const balanceAfter = (await this.token.balanceOf(fundRecipient2)).valueOf().toString()
-		assert.equal(bn(balanceAfter).minus(bn(balanceBefore)), 200)
+		let balanceAfter = (await this.token.balanceOf(fundRecipient2)).valueOf().toString()
+		assert.equal(bn(balanceAfter).minus(bn(balanceBefore)), 0)
+
+		time.increase(week);
+
+		balanceBefore = (await this.token.balanceOf(fundRecipient2)).valueOf().toString()
+		assert.equal(balanceBefore, 0)
+		await this.tokenVesting.unlock(0, fundRecipient2, { from: fundRecipient2 });
+		balanceAfter = (await this.token.balanceOf(fundRecipient2)).valueOf().toString()
+		assert.equal(bn(balanceAfter).minus(bn(balanceBefore)).toString(), 20)
 
 		time.increase(week);
 		const balanceBefore2 = (await this.token.balanceOf(fundRecipient2)).valueOf().toString()
-		assert.equal(balanceBefore2, 200)
+		assert.equal(balanceBefore2, 20)
 		await this.tokenVesting.unlock(0, fundRecipient2, { from: fundRecipient2 });
 		const balanceAfter2 = (await this.token.balanceOf(fundRecipient2)).valueOf().toString()
-		assert.equal(bn(balanceAfter2).minus(bn(balanceBefore2)), 200)
+		assert.equal(bn(balanceAfter2).minus(bn(balanceBefore2)), 20)
 		assert.equal((await this.tokenVesting.getUnlockable(0, fundRecipient2)).valueOf().toString(), 0)
 		time.increase(86400);
 		assert.equal((await this.tokenVesting.getUnlockable(0, fundRecipient2)).valueOf().toString(), 0)
 
 		time.increase(week);
 		const balanceBefore3 = (await this.token.balanceOf(fundRecipient2)).valueOf().toString()
-		assert.equal(balanceBefore3, 400)
+		assert.equal(balanceBefore3, 40)
 		await this.tokenVesting.unlock(0, fundRecipient2, { from: fundRecipient2 });
 		const balanceAfter3 = (await this.token.balanceOf(fundRecipient2)).valueOf().toString()
-		assert.equal(bn(balanceAfter3).minus(bn(balanceBefore3)), 200)
+		assert.equal(bn(balanceAfter3).minus(bn(balanceBefore3)), 20)
 
 		time.increase(week);
 		const balanceBefore4 = (await this.token.balanceOf(fundRecipient2)).valueOf().toString()
-		assert.equal(balanceBefore4, 600)
+		assert.equal(balanceBefore4, 60)
 		await this.tokenVesting.unlock(0, fundRecipient2, { from: fundRecipient2 });
 		const balanceAfter4 = (await this.token.balanceOf(fundRecipient2)).valueOf().toString()
-		assert.equal(bn(balanceAfter4).minus(bn(balanceBefore4)), 200)
+		assert.equal(bn(balanceAfter4).minus(bn(balanceBefore4)), 20)
 
 		time.increase(week);
 		const balanceBefore5 = (await this.token.balanceOf(fundRecipient2)).valueOf().toString()
-		assert.equal(balanceBefore5, 800)
+		assert.equal(balanceBefore5, 80)
 		await this.tokenVesting.unlock(0, fundRecipient2, { from: fundRecipient2 });
 		const balanceAfter5 = (await this.token.balanceOf(fundRecipient2)).valueOf().toString()
-		assert.equal(bn(balanceAfter5).minus(bn(balanceBefore5)), 200)
+		assert.equal(bn(balanceAfter5).minus(bn(balanceBefore5)), 20)
 
-		await expectRevert( this.tokenVesting.unlock(0,fundRecipient2) ,"TokenVesting: no tokens are due")
+		time.increase(week * 50);
+		const balanceBefore6 = (await this.token.balanceOf(fundRecipient2)).valueOf().toString()
+		assert.equal(balanceBefore6, 100)
+		await this.tokenVesting.unlock(0, fundRecipient2, { from: fundRecipient2 });
+		const balanceAfter6 = (await this.token.balanceOf(fundRecipient2)).valueOf().toString()
+		assert.equal(bn(balanceAfter6).minus(bn(balanceBefore6)), 900)
 
-
-		for(var i = 0; i <users.length;i++) {
-			await this.tokenVesting.lock(users[i], lockAmount, percent,cliff, { from: deployer })
-			const balanceBefore = (await this.token.balanceOf(users[i])).valueOf().toString()
-			time.increase(cliff+100)
-			await this.tokenVesting.unlock(0, users[i], { from: fundRecipient2 });
-			const balanceAfter = (await this.token.balanceOf(users[i])).valueOf().toString()
-			assert.equal(bn(balanceAfter).minus(bn(balanceBefore)), 200)
-
-		}
+		await this.tokenVesting.unlock(0, fundRecipient2, { from: fundRecipient2 });
+		assert.equal((await this.token.balanceOf(fundRecipient2)).valueOf().toString(), 1000)
+		await this.tokenVesting.unlock(0, fundRecipient2, { from: fundRecipient2 });
+		assert.equal((await this.token.balanceOf(fundRecipient2)).valueOf().toString(), 1000)
 	})
-	it("blacklist", async () => {
+	it("revoke", async () => {
 		const lockAmount = 1000;
-		const percent = 20;
-		await this.tokenVesting.lock(fundRecipient2, lockAmount, percent,cliff, { from: deployer })
-		const balanceBefore = (await this.token.balanceOf(deployer)).valueOf().toString()
-		await this.tokenVesting.blackList(0, fundRecipient2, { from: deployer })
-		const balanceAfter = (await this.token.balanceOf(deployer)).valueOf().toString()
+		await this.tokenVesting.lock(fundRecipient2, lockAmount, cliff, vestingPeriod, { from: deployer })
+		let balanceBefore = (await this.token.balanceOf(deployer)).valueOf().toString()
+		await this.tokenVesting.revoke(0, fundRecipient2, { from: deployer })
+		let balanceAfter = (await this.token.balanceOf(deployer)).valueOf().toString()
 		assert.equal(bn(balanceAfter).minus(bn(balanceBefore)), 1000)
 
-		await this.tokenVesting.lock(fundRecipient2, lockAmount, percent,cliff, { from: deployer })
-		time.increase(cliff)
+		assert.equal((await this.tokenVesting.getUnlockable(0, fundRecipient2)), 0)
+
+		await this.tokenVesting.lock(fundRecipient2, lockAmount, cliff, vestingPeriod, { from: deployer })
+		time.increase(cliff * 86400 + week)
 		await this.tokenVesting.unlock(1, fundRecipient2)
-		assert.equal((await this.token.balanceOf(fundRecipient2)).valueOf().toString(), 200)
-		await this.tokenVesting.blackList(1, fundRecipient2, { from: deployer })
-	
-		await expectRevert.unspecified(this.tokenVesting.getUnlockable(1, fundRecipient2))
+		assert.equal((await this.token.balanceOf(fundRecipient2)).valueOf().toString(), 20)
+		await this.tokenVesting.revoke(1, fundRecipient2, { from: deployer })
+
+		assert.equal((await this.tokenVesting.getVestingLength(fundRecipient2)), 2)
+		assert.equal((await this.tokenVesting.getUnlockable(1, fundRecipient2)), 0)
 	})
 
 });
